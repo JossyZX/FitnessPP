@@ -11,45 +11,55 @@
 
 ## ER-Диаграмма базы данных (Связи сущностей)
 
-```mermaid
-erDiagram
-    TRAINER ||--o{ CLIENT : "обслуживает (1:M)"
-    CLIENT ||--b| LOCKER : "арендует (1:1)"
-    CLIENT }o--o{ SERVICE : "пользуется (M:M через Client_Service)"
+  ┌────────────────────────┐               ┌────────────────────────┐
+  │   TRAINER (Тренеры)    │               │    LOCKER (Шкафчики)   │
+  ├────────────────────────┤               ├────────────────────────┤
+  │ PK │ Id (Guid)         │               │ PK │ Id (Guid)         │
+  │    │ Surname (string)  │               │    │ Number (int) [Uniq]│
+  │    │ Name (string)     │               │ FK │ ClientId (Guid?)   │
+  │    │ Patronymic(string)│               └───────────┬────────────┘
+  │    │ Phone (string)    │                           │
+  │    │ Status (Enum)     │                           │ (1 : 1)
+  └───────────┬────────────┘                           │
+              │                                        │
+              │ (1 : N)                                │
+              │                                        │
+              ▼                                        ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                        CLIENT (Клиенты)                         │
+  ├─────────────────────────────────────────────────────────────────┤
+  │ PK │ Id (Guid)                                                  │
+  │    │ Surname (string)                                           │
+  │    │ Name (string)                                              │
+  │    │ Patronymic (string)                                        │
+  │    │ Birthday (DateTime)                                        │
+  │    │ Phone (string)                                             │
+  │    │ Email (string)                                             │
+  │    │ IsActive (bool)                                            │
+  │ FK │ TrainerId (Guid?)                                          │
+  │ FK │ LockerId (Guid?)                                           │
+  └───────────────────────────────┬─────────────────────────────────┘
+                                  │
+                                  │ (1 : N)
+                                  │
+                                  ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │              CLIENT_SERVICE (Связующая таблица)                 │
+  ├─────────────────────────────────────────────────────────────────┤
+  │ FK │ client_id (Guid)                                           │
+  │ FK │ service_id (string)                                        │
+  └───────────────────────────────▲─────────────────────────────────┘
+                                  │
+                                  │ (N : 1)
+                                  │
+  ┌───────────────────────────────┴────────┐
+  │           SERVICE (Услуги)             │
+  ├────────────────────────────────────────┤
+  │ PK │ Id (string)  [Например: "POOL"]   │
+  │    │ Name (string)                     │
+  │    │ Price (int)                       │
+  └────────────────────────────────────────┘
 
-    TRAINER {
-        guid Id PK
-        string Surname
-        string Name
-        string Patronymic
-        string Phone
-        enum Status
-    }
-
-    CLIENT {
-        guid Id PK
-        string Surname
-        string Name
-        string Patronymic
-        datetime Birthday
-        string Phone
-        string Email
-        boolean IsActive
-        guid TrainerId FK
-        guid LockerId FK
-    }
-
-    LOCKER {
-        guid Id PK
-        int Number "Уникальный (1-20)"
-        guid ClientId FK
-    }
-
-    SERVICE {
-        string Id PK "Строковый ID (например, POOL)"
-        string Name
-        int Price
-    }
 ```
 
 ---
