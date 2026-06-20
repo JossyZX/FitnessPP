@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace FitnessPP.Models;
 
@@ -27,4 +28,12 @@ public class Client
     public bool IsActive { get; set; } = true;
 
     public Guid? TrainerId { get; set; }
+
+    public Guid? LockerId { get; set; }
+
+    [JsonIgnore]
+    public Locker? Locker { get; set; }
+
+    [JsonIgnore]
+    public List<Service> Services { get; set; } = new();
 }

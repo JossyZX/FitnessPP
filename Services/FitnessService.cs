@@ -1,58 +1,62 @@
 ﻿using FitnessPP.Dtos;
 using FitnessPP.Models;
-using FitnessPP.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace FitnessPP.Services;
 
 public class FitnessService
 {
-    private readonly IClientRepository _clientRepository;
-    private readonly ITrainerRepository _trainerRepository;
+    private readonly AppDbContext _context;
 
-    public FitnessService(IClientRepository clientRepository, ITrainerRepository trainerRepository)
+    public FitnessService(AppDbContext context)
     {
-        _clientRepository = clientRepository;
-        _trainerRepository = trainerRepository;
+        _context = context;
     }
 
     #region Trainer Methods
 
-    public List<Trainer> GetAllTrainers() => _trainerRepository.GetAll();
+    public List<Trainer> GetAllTrainers() => _context.Trainers.ToList();
 
-    public Trainer? GetTrainerById(Guid id) => _trainerRepository.GetById(id);
+    public Trainer? GetTrainerById(Guid id) => _context.Trainers.Find(id);
 
     public Trainer CreateTrainer(Trainer trainer)
     {
-        _trainerRepository.Add(trainer);
+        _context.Trainers.Add(trainer);
+        _context.SaveChanges();
         return trainer;
     }
 
     public Trainer? UpdateTrainer(Guid id, Trainer updatedTrainer)
     {
-        var existing = _trainerRepository.GetById(id);
+        var existing = _context.Trainers.Find(id);
         if (existing == null) return null;
 
-        updatedTrainer.Id = id; // Гарантируем, что ID совпадает
-        _trainerRepository.Update(updatedTrainer);
-        return updatedTrainer;
+        existing.Surname = updatedTrainer.Surname;
+        existing.Name = updatedTrainer.Name;
+        existing.Patronymic = updatedTrainer.Patronymic;
+        existing.Phone = updatedTrainer.Phone;
+        existing.Status = updatedTrainer.Status;
+
+        _context.SaveChanges();
+        return existing;
     }
 
     public Trainer? UpdateTrainerStatus(Guid id, TrainerStatus newStatus)
     {
-        var trainer = _trainerRepository.GetById(id);
+        var trainer = _context.Trainers.Find(id);
         if (trainer == null) return null;
 
         trainer.Status = newStatus;
-        _trainerRepository.Update(trainer);
+        _context.SaveChanges();
         return trainer;
     }
 
     public TrainerDetailDto? GetTrainerDetail(Guid id)
     {
-        var trainer = _trainerRepository.GetById(id);
+        var trainer = _context.Trainers.Find(id);
         if (trainer == null) return null;
 
-        var clients = _clientRepository.GetByTrainerId(id);
+        var clients = _context.Clients.Where(c => c.TrainerId == id).ToList();
 
         return new TrainerDetailDto
         {
@@ -70,60 +74,67 @@ public class FitnessService
 
     #region Client Methods
 
-    public List<Client> GetAllClients() => _clientRepository.GetAll();
+    public List<Client> GetAllClients() => _context.Clients.ToList();
 
-    public Client? GetClientById(Guid id) => _clientRepository.GetById(id);
+    public Client? GetClientById(Guid id) => _context.Clients.Find(id);
 
     public Client CreateClient(Client client)
     {
-        _clientRepository.Add(client);
+        _context.Clients.Add(client);
+        _context.SaveChanges();
         return client;
     }
 
     public Client? UpdateClient(Guid id, Client updatedClient)
     {
-        var existing = _clientRepository.GetById(id);
+        var existing = _context.Clients.Find(id);
         if (existing == null) return null;
 
-        updatedClient.Id = id;
-        updatedClient.TrainerId = existing.TrainerId;
-        _clientRepository.Update(updatedClient);
-        return updatedClient;
+        existing.Surname = updatedClient.Surname;
+        existing.Name = updatedClient.Name;
+        existing.Patronymic = updatedClient.Patronymic;
+        existing.Birthday = updatedClient.Birthday;
+        existing.Phone = updatedClient.Phone;
+        existing.Email = updatedClient.Email;
+        existing.IsActive = updatedClient.IsActive;
+
+        _context.SaveChanges();
+        return existing;
     }
 
     public Client? UpdateClientStatus(Guid id, bool isActive)
     {
-        var client = _clientRepository.GetById(id);
+        var client = _context.Clients.Find(id);
         if (client == null) return null;
 
         client.IsActive = isActive;
-        _clientRepository.Update(client);
+        _context.SaveChanges();
         return client;
     }
 
     public string? AssignTrainer(Guid clientId, Guid trainerId)
     {
-        var client = _clientRepository.GetById(clientId);
+        var client = _context.Clients.Find(clientId);
         if (client == null) return "ClientNotFound";
 
-        var trainer = _trainerRepository.GetById(trainerId);
+        var trainer = _context.Trainers.Find(trainerId);
         if (trainer == null) return "TrainerNotFound";
 
         client.TrainerId = trainerId;
-        _clientRepository.Update(client);
+        _context.SaveChanges();
         return "Success";
     }
 
     public ClientDetailDto? GetClientDetail(Guid id)
     {
-        var client = _clientRepository.GetById(id);
+        var client = _context.Clients
+            .Include(c => c.Locker)
+            .Include(c => c.Services)
+            .FirstOrDefault(c => c.Id == id);
+
         if (client == null) return null;
 
-        Trainer? trainer = null;
-        if (client.TrainerId.HasValue)
-        {
-            trainer = _trainerRepository.GetById(client.TrainerId.Value);
-        }
+        Trainer? trainer = client.TrainerId.HasValue ? _context.Trainers.Find(client.TrainerId.Value) : null;
 
         return new ClientDetailDto
         {
@@ -135,8 +146,78 @@ public class FitnessService
             Phone = client.Phone,
             Email = client.Email,
             IsActive = client.IsActive,
-            Trainer = trainer
+            Trainer = trainer,
+            Locker = client.Locker,
+            Services = client.Services
         };
+    }
+
+    #endregion
+
+    #region Locker & Service Methods (Новая бизнес-логика ПП04)
+
+    public List<Locker> GetAllLockers() => _context.Lockers.ToList();
+
+    public List<Service> GetAllServices() => _context.Services.ToList();
+
+    public ServiceDetailDto? GetServiceDetail(string id)
+    {
+        var service = _context.Services
+            .Include(s => s.Clients)
+            .FirstOrDefault(s => s.Id == id);
+
+        if (service == null) return null;
+
+        return new ServiceDetailDto
+        {
+            Id = service.Id,
+            Name = service.Name,
+            Price = service.Price,
+            Clients = service.Clients
+        };
+    }
+
+    public string AssignLocker(Guid clientId, Guid lockerId)
+    {
+        var client = _context.Clients.Include(c => c.Locker).FirstOrDefault(c => c.Id == clientId);
+        if (client == null) return "ClientNotFound";
+
+        var locker = _context.Lockers.Find(lockerId);
+        if (locker == null) return "LockerNotFound";
+
+        if (locker.ClientId.HasValue && locker.ClientId != clientId)
+        {
+            return "LockerOccupied";
+        }
+
+        if (client.LockerId.HasValue && client.LockerId != lockerId)
+        {
+            return "ClientAlreadyHasLocker";
+        }
+
+        client.LockerId = lockerId;
+        locker.ClientId = clientId;
+
+        _context.SaveChanges();
+        return "Success";
+    }
+
+    public string AddServiceToClient(Guid clientId, string serviceId)
+    {
+        var client = _context.Clients.Include(c => c.Services).FirstOrDefault(c => c.Id == clientId);
+        if (client == null) return "ClientNotFound";
+
+        var service = _context.Services.Find(serviceId);
+        if (service == null) return "ServiceNotFound";
+
+        if (client.Services.Any(s => s.Id == serviceId))
+        {
+            return "AlreadySubscribed";
+        }
+
+        client.Services.Add(service);
+        _context.SaveChanges();
+        return "Success";
     }
 
     #endregion
